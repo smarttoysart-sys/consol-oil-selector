@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Подбор Масла Consol</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; }
+        label { display: block; margin-top: 10px; }
+        input, select { width: 100%; padding: 8px; margin-top: 5px; }
+        button { margin-top: 20px; padding: 10px 20px; }
+        pre { background: #f4f4f4; padding: 10px; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>Подбор моторного масла</h1>
+    <form id="oilForm">
+        <label>VIN (по желанию): <input type="text" name="vin"></label>
+        <label>Марка авто: <input type="text" name="brand" required></label>
+        <label>Модель: <input type="text" name="model" required></label>
+        <label>Год выпуска: <input type="number" name="year" required></label>
+        <label>Двигатель (тип, объём, DPF и т.д.): <input type="text" name="engine" required></label>
+        <label>Пробег (км): <input type="number" name="mileage" required></label>
+        <label>Климат/регион: <input type="text" name="climate" required></label>
+        <label>Стиль вождения: 
+            <select name="driving_style" required>
+                <option value="городской">Городской</option>
+                <option value="трасса">Трасса</option>
+                <option value="агрессивный">Агрессивный</option>
+                <option value="спокойный">Спокойный</option>
+            </select>
+        </label>
+        <button type="submit">Подобрать</button>
+    </form>
+    <h2>Результат:</h2>
+    <pre id="result"></pre>
+
+    <script>
+        const form = document.getElementById('oilForm');
+        const result = document.getElementById('result');
+
+        async function decodeVIN(vin) {
+            const res = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/${vin}?format=json`);
+            const json = await res.json();
+            let info = {};
+            json.Results.forEach(entry => {
+                if (entry.Variable === 'Make') info.brand = entry.Value;
+                if (entry.Variable === 'Model') info.model = entry.Value;
+                if (entry.Variable === 'Model Year') info.year = entry.Value;
+                if (entry.Variable === 'Displacement (L)') info.engine = entry.Value + ' л';
+            });
+            return info;
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            result.textContent = 'Подбор масла...';
+
+            const formData = Object.fromEntries(new FormData(form));
+            if (formData.vin) {
+                const decoded = await decodeVIN(formData.vin);
+                if (decoded.brand) formData.brand = decoded.brand;
+                if (decoded.model) formData.model = decoded.model;
+                if (decoded.year) formData.year = decoded.year;
+                if (decoded.engine) formData.engine = decoded.engine;
+            }
+
+            const response = await fetch("/recommend", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(formData)
+            });
+
+            const json = await response.json();
+            result.textContent = json.recommendation || "Ошибка подбора";
+        });
+    </script>
+</body>
+</html>
